@@ -22,28 +22,16 @@ func main() {
 	fmt.Println(tran)
 	fmt.Println(tran.VerifyTx())
 
-	msgChan := make(chan string, 10)
-	defer close(msgChan)
-
 	var net Net = &Network{}
 	net.Connect()
 	defer net.Close()
 
 	net.BroadcastMsg("hello, world")
-	net.RegistMsgHandler(handler, msgChan)
 
-	go func() {
-		for {
-			msg := <-msgChan // 从管道接收消息（阻塞等待消息）
+	for {
+		select {
+		case msg := <-net.MsgChan():
 			log.Println("[msg]", msg)
 		}
-	}()
-
-	select {}
-
-}
-
-func handler(m string, msgChan ReceivedMsgChan) {
-	// log.Printf("[recv]: [%s]", m)
-	msgChan <- m
+	}
 }

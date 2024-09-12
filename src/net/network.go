@@ -7,93 +7,77 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-type ReceivedMsgChan chan<- string
-type ReceivedMsgHandler func(string, ReceivedMsgChan)
-
 type Net interface {
 	Connect()
 	Close()
 	BroadcastMsg(string)
-	RegistMsgHandler(ReceivedMsgHandler, ReceivedMsgChan)
+	MsgChan() <-chan string // 网络消息管道的只读接口
 }
 
+/*简单网络实现，使用中心转发的方式，c连接服务器，服务器将所有消息转发到其余客户端*/
 type Network struct {
-	c *websocket.Conn
+	c       *websocket.Conn
+	msgChan chan string //ws收到消息写入管道，主程序使用时读出
 }
 
 func (n *Network) Connect() {
 	addr := "localhost:58080"
 	u := url.URL{Scheme: "ws", Host: addr, Path: "/"}
 	var e error
-	n.c, _, e = websocket.DefaultDialer.Dial(u.String(), nil)
+	n.c, _, e = websocket.DefaultDialer.Dial(u.String(), nil) //升级到ws网络
 	if e != nil {
 		log.Fatal("[net] [con] [dial]", e)
 	} else {
 		log.Printf("[net] [con] [connected] to %s \n", u.String())
 	}
+
+	n.msgChan = make(chan string, 10) //初始化管道
+	go func() {                       //在协程将收到的网络消息写入管道
+		for {
+			_, message, err := n.c.ReadMessage()
+			if err != nil {
+				log.Println("[net] [read_error]", err)
+				// n.Close()
+				return
+			}
+			n.msgChan <- string(message)
+		}
+	}()
 }
+
 func (n *Network) Close() {
-	// // Cleanly close the connection by sending a close message and then
-	// // waiting (with timeout) for the server to close the connection.
-	// err := n.c.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
-	// if err != nil {
-	// 	log.Println("[net] [con] [close] write close:", err)
-	// 	return
-	// } else {
-	// 	log.Println("[net] [con] [close] [send ok]")
-	// }
+	close(n.msgChan)
 	n.c.Close()
 	log.Println("[net] [con] [disconneted]")
 }
+
 func (n *Network) BroadcastMsg(m string) {
 	err := n.c.WriteMessage(websocket.TextMessage, []byte(m))
 	if err != nil {
-		log.Println("write:", err)
+		log.Println("[net] [write]", err)
 		return
 	}
 	log.Printf("[net] [broadcast] [%s]\n", m)
 	// log.Printf("[net] [broadcast] [%s]\n", m[20:])
 }
 
-func (n *Network) RegistMsgHandler(handler ReceivedMsgHandler, msgChan ReceivedMsgChan) {
-	go func() { //在协程里处理收到的消息
-		for {
-			_, message, err := n.c.ReadMessage()
-			if err != nil {
-				log.Println("[net] [read_error]", err)
-				return
-			}
-			handler(string(message), msgChan)
-		}
-	}()
+func (n *Network) MsgChan() <-chan string {
+	return n.msgChan
 }
 
-/////此处的设计有点麻烦且绕，chan在使用处注册
 ////////////usage:
 
-// func handler(m string, msgChan ReceivedMsgChan) {
-// 	// log.Printf("[recv]: [%s]", m)
-// 	msgChan <- m
-// }
-
 // func main() {
-
-// 	msgChan := make(chan string, 10)
-// 	defer close(msgChan)
-
-// 	var net Network = Network{}
+// 	var net Net = &Network{}
 // 	net.Connect()
 // 	defer net.Close()
 
 // 	net.BroadcastMsg("hello, world")
-// 	net.RegistMsgHandler(handler, msgChan)
 
-// 	go func() {
-// 		for {
-// 			msg := <-msgChan // 从管道接收消息（阻塞等待消息）
+// 	for {
+// 		select {
+// 		case msg := <-net.MsgChan():
 // 			log.Println("[msg]", msg)
 // 		}
-// 	}()
-
-// 	select {}
+// 	}
 // }
