@@ -1,37 +1,46 @@
 package main
 
 import (
-	"fmt"
+	"flag"
 	. "gochain/net"
-	. "gochain/tx"
 	"log"
 )
 
 func main() {
-	tran := NewTx("alice", "bob", 12, "0xfff")
-	fmt.Println(tran)
-	fmt.Println(tran.VerifyTx())
+	// tran := NewTx("alice", "bob", 12, "0xfff")
+	// fmt.Println(tran)
+	// fmt.Println(tran.VerifyTx())
 
-	tran = NewTxWithOptions(
-		WithFrom("bob"),
-		WithTo("alice"),
-		WithAmount(34),
-		WithSignature("bob's sig"),
-	)
+	port := flag.Int("port", 59100, "The port number of server to receive tx")
+	serverMode := flag.Bool("server", false, "Run with server start")
+	pingMode := flag.Bool("ping", false, "Run with ping")
+	pingDuration := flag.Int("duration", 5, "ping duration (seconds)")
+	flag.Parse()
 
-	fmt.Println(tran)
-	fmt.Println(tran.VerifyTx())
-
-	var net Net = &Network{}
+	// var net Net = &SimpleNetwork{}
+	net := SimpleNetwork{}
 	net.Connect()
 	defer net.Close()
 
-	net.BroadcastMsg("hello, world")
+	if *pingMode {
+		net.Ping(*pingDuration)
+	}
+
+	server := ServerNet{}
+	if *serverMode {
+		server.Listen(*port)
+		defer server.Close()
+	}
+
+	// net.BroadcastMsg("hello, world")
 
 	for {
 		select {
 		case msg := <-net.MsgChan():
 			log.Println("[msg]", msg)
+		case serverMsg := <-server.MsgChan():
+			log.Println("[server_msg]", serverMsg)
+			net.BroadcastMsg(serverMsg)
 		}
 	}
 }

@@ -3,14 +3,21 @@ package tx
 import "strings"
 
 type Tx struct {
-	From      string
-	To        string
-	Amount    int
-	Signature string
+	From      string `json:"from"`
+	To        string `json:"to"`
+	Amount    int    `json:"amount"`
+	Signature string `json:"signature"`
 }
 
 /*
 函数式选项模式只适合于复杂的实例化，如果参数只有简单几个，建议还是用普通的构造函数来解决。
+
+	tran = NewTxWithOptions(
+	WithFrom("bob"),
+	WithTo("alice"),
+	WithAmount(34),
+	WithSignature("bob's sig"),
+	)
 */
 type TxOptions func(t *Tx)
 

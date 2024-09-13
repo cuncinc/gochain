@@ -1,26 +1,25 @@
+/*
+* 网络服务：与其他节点相连
+* 实现Net接口
+ */
+
 package net
 
 import (
 	"log"
 	"net/url"
+	"time"
 
 	"github.com/gorilla/websocket"
 )
 
-type Net interface {
-	Connect()
-	Close()
-	BroadcastMsg(string)
-	MsgChan() <-chan string // 网络消息管道的只读接口
-}
-
 /*简单网络实现，使用中心转发的方式，c连接服务器，服务器将所有消息转发到其余客户端*/
-type Network struct {
+type SimpleNetwork struct {
 	c       *websocket.Conn
 	msgChan chan string //ws收到消息写入管道，主程序使用时读出
 }
 
-func (n *Network) Connect() {
+func (n *SimpleNetwork) Connect() {
 	addr := "localhost:58080"
 	u := url.URL{Scheme: "ws", Host: addr, Path: "/"}
 	var e error
@@ -43,26 +42,44 @@ func (n *Network) Connect() {
 			n.msgChan <- string(message)
 		}
 	}()
+
 }
 
-func (n *Network) Close() {
+func (n *SimpleNetwork) Close() {
 	close(n.msgChan)
 	n.c.Close()
 	log.Println("[net] [con] [disconneted]")
 }
 
-func (n *Network) BroadcastMsg(m string) {
+func (n *SimpleNetwork) BroadcastMsg(m string) {
 	err := n.c.WriteMessage(websocket.TextMessage, []byte(m))
 	if err != nil {
 		log.Println("[net] [write]", err)
 		return
 	}
-	log.Printf("[net] [broadcast] [%s]\n", m)
-	// log.Printf("[net] [broadcast] [%s]\n", m[20:])
+	log.Printf("[net] [broadcast] %s\n", m)
+	// log.Printf("[net] [broadcast] %s\n", m[20:])
 }
 
-func (n *Network) MsgChan() <-chan string {
+func (n *SimpleNetwork) MsgChan() <-chan string {
 	return n.msgChan
+}
+
+func (n *SimpleNetwork) Ping(second int) {
+	ticker := time.NewTicker(time.Second * time.Duration(second))
+	go func() {
+		for {
+			select {
+			case <-ticker.C:
+				m := "ping"
+				err := n.c.WriteMessage(websocket.TextMessage, []byte(m))
+				if err != nil {
+					log.Println("[net] [write]", err)
+					return
+				}
+			}
+		}
+	}()
 }
 
 ////////////usage:

@@ -4,8 +4,10 @@
 package main
 
 import (
+	"flag"
 	"log"
 	"net/http"
+	"strconv"
 	"sync"
 
 	"github.com/gorilla/websocket"
@@ -41,16 +43,20 @@ func home(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 
-		// log.Printf("[recv] [%s] [%s]", r.RemoteAddr, message)
-		// rsp := "got it"
-		// err = c.WriteMessage(mt, []byte(rsp))
-		// if err != nil {
-		// 	log.Println("[write err]:", err)
-		// 	break
-		// }
+		str := string(message)
+		if str == "ping" {
+			log.Printf("[ping] [%s]", r.RemoteAddr)
+			rsp := "pong"
+			err = c.WriteMessage(mt, []byte(rsp))
+			if err != nil {
+				log.Println("[write err]:", err)
+				break
+			}
+		} else {
+			log.Println("[broadcast] from ", r.RemoteAddr)
+			broadcastMessage(mt, message, c)
+		}
 
-		log.Println("[broadcast] from ", r.RemoteAddr)
-		broadcastMessage(mt, message, c)
 	}
 
 	log.Println("[con_info] [discon] to", r.RemoteAddr)
@@ -76,7 +82,9 @@ func broadcastMessage(mt int, message []byte, sender *websocket.Conn) {
 }
 
 func main() {
-	addrress := "0.0.0.0:58080"
+	port := flag.Int("port", 58080, "port of server")
+	flag.Parse()
+	addrress := "0.0.0.0:" + strconv.Itoa(*port)
 	log.Println("Starting server at", addrress)
 	http.HandleFunc("/", home)
 	http.ListenAndServe(addrress, nil)
