@@ -1,12 +1,18 @@
 package tx
 
-import "strings"
+import (
+	"gochain/cryptor"
+	"strconv"
+	"time"
+)
 
 type Tx struct {
 	From      string `json:"from"`
 	To        string `json:"to"`
 	Amount    int    `json:"amount"`
+	Timestamp int64  `json:"timestamp"`
 	Signature string `json:"signature"`
+	PubKey    string `json:"pub_key"`
 }
 
 /*
@@ -21,12 +27,13 @@ type Tx struct {
 */
 type TxOptions func(t *Tx)
 
-func NewTx(from string, to string, amount int, signature string) *Tx {
+func NewTx(from string, to string, amount int, pubKey string) *Tx {
 	return &Tx{
 		From:      from,
 		To:        to,
 		Amount:    amount,
-		Signature: signature,
+		PubKey:    pubKey,
+		Timestamp: time.Now().Unix(),
 	}
 }
 
@@ -48,9 +55,9 @@ func WithAmount(amount int) TxOptions {
 	}
 }
 
-func WithSignature(signature string) TxOptions {
+func WithTimestamp(timestamp int64) TxOptions {
 	return func(t *Tx) {
-		t.Signature = signature
+		t.Timestamp = timestamp
 	}
 }
 
@@ -62,9 +69,11 @@ func NewTxWithOptions(options ...TxOptions) *Tx {
 	return t
 }
 
-func (t *Tx) VerifyTx() bool {
-	if strings.Contains(t.Signature, t.From) {
-		return true
-	}
-	return false
+func (t *Tx) Verify() bool {
+	valid, _ := cryptor.VerifySignatureWithPublicKeyString(t.PubKey, t.GetTxData(), t.Signature)
+	return valid
+}
+
+func (t *Tx) GetTxData() string {
+	return t.From + t.To + strconv.Itoa(t.Amount) + strconv.FormatInt(t.Timestamp, 10)
 }
