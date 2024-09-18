@@ -1,3 +1,8 @@
+/*
+ can refer to ethereum's transaction struct:
+ https://ethereum.org/zh/developers/docs/transactions/
+*/
+
 package tx
 
 import (
@@ -9,10 +14,11 @@ import (
 type Tx struct {
 	From      string `json:"from"`
 	To        string `json:"to"`
-	Amount    int    `json:"amount"`
+	Value     int    `json:"value"`
 	Timestamp int64  `json:"timestamp"`
 	Signature string `json:"signature"`
-	PubKey    string `json:"pub_key"`
+	PubKey    string `json:"pubKey"`
+	Data      string `json:"data"`
 }
 
 /*
@@ -21,17 +27,17 @@ type Tx struct {
 	tran = NewTxWithOptions(
 	WithFrom("bob"),
 	WithTo("alice"),
-	WithAmount(34),
+	WithValue(34),
 	WithSignature("bob's sig"),
 	)
 */
 type TxOptions func(t *Tx)
 
-func NewTx(from string, to string, amount int, pubKey string) *Tx {
+func NewTx(from string, to string, value int, pubKey string) *Tx {
 	return &Tx{
 		From:      from,
 		To:        to,
-		Amount:    amount,
+		Value:     value,
 		PubKey:    pubKey,
 		Timestamp: time.Now().Unix(),
 	}
@@ -49,9 +55,9 @@ func WithTo(to string) TxOptions {
 	}
 }
 
-func WithAmount(amount int) TxOptions {
+func WithValue(value int) TxOptions {
 	return func(t *Tx) {
-		t.Amount = amount
+		t.Value = value
 	}
 }
 
@@ -69,11 +75,11 @@ func NewTxWithOptions(options ...TxOptions) *Tx {
 	return t
 }
 
-func (t *Tx) Verify() bool {
+func (t *Tx) Validate() bool {
 	valid, _ := cryptor.VerifySignatureWithPublicKeyString(t.PubKey, t.GetTxData(), t.Signature)
 	return valid
 }
 
 func (t *Tx) GetTxData() string {
-	return t.From + t.To + strconv.Itoa(t.Amount) + strconv.FormatInt(t.Timestamp, 10)
+	return t.From + t.To + strconv.Itoa(t.Value) + strconv.FormatInt(t.Timestamp, 10)
 }

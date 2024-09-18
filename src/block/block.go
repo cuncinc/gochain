@@ -1,80 +1,119 @@
 package block
 
 import (
+	. "gochain/cryptor"
 	. "gochain/tx"
+	"strconv"
+	"time"
 )
 
-// Block 是一个通用区块接口，适用于不同的共识机制
-type Block interface {
-	GetHash() string         // 返回区块的哈希值
-	GetPreviousHash() string // 返回前一个区块的哈希值
-	GetTimestamp() int64     // 返回区块的时间戳
-	GetTransList() []Tx      // 返回区块中的交易
-	GetHeight() int          // 长度
-	Validate() bool          // 验证区块的有效性
+// // Block 是一个通用区块接口，适用于不同的共识机制
+// type Block interface {
+// 	GetHash() string         // 返回区块的哈希值
+// 	GetPreviousHash() string // 返回前一个区块的哈希值
+// 	GetTimestamp() int64     // 返回区块的时间戳
+// 	GetTransList() []Tx      // 返回区块中的交易
+// 	GetHeight() int          // 长度
+// 	Validate() bool          // 验证区块的有效性
+// }
+
+// // PoWBlock 定义了工作量证明（PoW）区块的特定接口
+// type PoWBlock interface {
+// 	Block               // 继承通用区块接口
+// 	GetNonce() int      // 返回区块中的 nonce
+// 	GetDifficulty() int // 返回区块的挖矿难度
+// 	MineBlock()         // 进行挖矿（计算 nonce）
+// }
+
+type PoWBlock struct {
+	Height       int    `json:"height"`
+	PreviousHash string `json:"previousHash"`
+	Hash         string `json:"hash"`
+	Timestamp    int64  `json:"timestamp"`
+	Nonce        int    `json:"nonce"`
+	Difficulty   int    `json:"difficulty"`
+	MerkleRoot   string `json:"merkleRoot"`
+	TransList    []Tx   `json:"transList"`
 }
 
-// PoWBlock 定义了工作量证明（PoW）区块的特定接口
-type PoWBlock interface {
-	Block               // 继承通用区块接口
-	GetNonce() int      // 返回区块中的 nonce
-	GetDifficulty() int // 返回区块的挖矿难度
-	MineBlock()         // 进行挖矿（计算 nonce）
+func NewPoWBlock(height int, previousHash string, transList []Tx) *PoWBlock {
+	b := &PoWBlock{
+		Height:       height,
+		PreviousHash: previousHash,
+		Timestamp:    time.Now().Unix(),
+		TransList:    transList,
+	}
+	b.MerkleRoot = b.calculateMerkleRoot()
+	return b
 }
 
-type PoWBlockHeader struct {
-	Height       int
-	Hash         string
-	PreviousHash string
-	Timestamp    int64
-	Nonce        string
-	MerkleRoot   string
+func (b *PoWBlock) MineBlock(difficulty int) {
+	b.Difficulty = difficulty
+	b.Nonce = 1
+	var hash string
+	for {
+		hash = b.calculateHash()
+		if validatePoW(hash, difficulty) {
+			break
+		}
+		b.Nonce++
+	}
+	b.Hash = hash
 }
 
-type SimplePoWBlock struct {
-	Height       int
-	Hash         string
-	PreviousHash string
-	Timestamp    int64
-	TransList    []Tx
-	Nonce        int
-	Difficulty   int
-}
-
-func (b *SimplePoWBlock) GetHash() string {
-	return b.Hash
-}
-
-func (b *SimplePoWBlock) GetPreviousHash() string {
-	return b.PreviousHash
-}
-
-func (b *SimplePoWBlock) GetTimestamp() int64 {
-	return b.Timestamp
-}
-
-func (b *SimplePoWBlock) GetTransList() []Tx {
-	return b.TransList
-}
-
-func (b *SimplePoWBlock) Validate() bool {
-	// 验证工作量证明
-	// return ValidatePoW(b.Hash, b.Difficulty)
+func (b *PoWBlock) Validate() bool {
+	// 验证melkle root
+	if b.MerkleRoot != b.calculateMerkleRoot() {
+		return false
+	}
+	// 验证PoW
+	if !validatePoW(b.Hash, b.Difficulty) {
+		return false
+	}
+	// 验证hash
+	if b.Hash != b.calculateHash() {
+		return false
+	}
+	//验证交易
+	for _, tx := range b.TransList {
+		if !tx.Validate() {
+			return false
+		}
+	}
 	return true
 }
 
-func (b *SimplePoWBlock) GetNonce() int {
-	return b.Nonce
+func (b *PoWBlock) calculateHash() string {
+	data := strconv.Itoa(b.Height) + b.PreviousHash + strconv.FormatInt(b.Timestamp, 10) + strconv.Itoa(b.Nonce) + strconv.Itoa(b.Difficulty) + b.MerkleRoot
+	return Sha256(data)
 }
 
-func (b *SimplePoWBlock) GetDifficulty() int {
-	return b.Difficulty
+func validatePoW(hash string, difficulty int) bool {
+	prefix := ""
+	for i := 0; i < difficulty; i++ {
+		prefix += "0"
+	}
+	return hash[:difficulty] == prefix
 }
 
-func (b *SimplePoWBlock) MineBlock() {
-	// // 挖矿算法（找到符合难度要求的 nonce）
-	// for !IsValidHash(b.Hash, b.Difficulty) {
-	// 	b.Nonce++
-	// 	b.Hash = CalculateHash(b.PreviousHash, b.Timestamp, b.Transactions, b.Nonce)
-	// }
+func txHash(t Tx) string {
+	data := t.From + t.To + strconv.Itoa(t.Value) + strconv.FormatInt(t.Timestamp, 10) + t.Signature + t.PubKey + t.Data
+	return Sha256(data)
+}
+
+/*不是真正的melkle，待优化*/
+func (b *PoWBlock) calculateMerkleRoot() string {
+	tLen := len(b.TransList)
+
+	if tLen == 0 {
+		return ""
+	} else if tLen == 1 {
+		return txHash(b.TransList[0])
+	}
+
+	var merkle string = ""
+	for _, tx := range b.TransList {
+		merkle = Sha256(merkle + txHash(tx))
+	}
+	return merkle
 }

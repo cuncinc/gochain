@@ -1,6 +1,11 @@
 //go:build server
 // +build server
 
+/*
+* block chain node transport server
+* 区块链网络中转服务器
+ */
+
 package main
 
 import (

@@ -12,7 +12,7 @@ func TestNewTx(t *testing.T) {
 	t1 := NewTx(alice.GetAddress(), bob.GetAddress(), 34, alice.GetPublicKeyAsString())
 	sig, _ := alice.Sign(t1.GetTxData())
 	t1.Signature = sig
-	if !t1.Verify() {
+	if !t1.Validate() {
 		t.Error("签名验证失败")
 	} else {
 		t.Log("签名验证成功")

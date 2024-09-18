@@ -1,6 +1,12 @@
 //go:build client
 // +build client
 
+/*
+* block chain node client
+* 区块链网络节点测试
+* 在net包中实现
+ */
+
 package main
 
 import (
